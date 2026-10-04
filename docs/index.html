@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>FreePort — See &amp; Free Busy Ports on macOS (Docker, DDEV, Node)</title>
+<meta name="description" content="Free macOS menu bar app that shows which app is using which port — and frees it in one click. Resolves Docker, OrbStack and DDEV containers by name, not just &quot;OrbStack&quot;. Open source.">
+<link rel="canonical" href="https://etyamor.github.io/freeport/">
+
+<meta name="author" content="Maksym Rutkovskyi">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#0d1117">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FreePort">
+<meta property="og:title" content="FreePort — See &amp; Free Busy Ports on macOS">
+<meta property="og:description" content="A free menu bar app that shows which app is using which port on macOS, resolves Docker and DDEV containers by name, and frees any port in one click.">
+<meta property="og:url" content="https://etyamor.github.io/freeport/">
+<meta property="og:image" content="https://etyamor.github.io/freeport/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="FreePort — see which app is using which port on macOS">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FreePort — See &amp; Free Busy Ports on macOS">
+<meta name="twitter:description" content="Shows which app is using which port on macOS — Docker, OrbStack, DDEV, Node — and frees it in one click. Free and open source.">
+<meta name="twitter:image" content="https://etyamor.github.io/freeport/og.png">
+
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "FreePort",
+  "applicationCategory": "DeveloperApplication",
+  "applicationSubCategory": "Network Utility",
+  "operatingSystem": "macOS 13.0 or later",
+  "description": "A macOS menu bar app that shows which application is using which TCP port and frees it in one click, resolving Docker, OrbStack and DDEV containers to their real names.",
+  "url": "https://etyamor.github.io/freeport/",
+  "downloadUrl": "https://github.com/Etyamor/freeport/releases/latest",
+  "softwareVersion": "1.0.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "image": "https://etyamor.github.io/freeport/og.png",
+  "author": { "@type": "Person", "name": "Maksym Rutkovskyi" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "featureList": [
+    "Lists every listening TCP port on macOS",
+    "Resolves Docker and OrbStack containers to their real names",
+    "Groups DDEV containers by project",
+    "Shows the project directory for Node and Bun servers",
+    "Frees a port with one click",
+    "Command line interface"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I find what is using a port on macOS?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Run lsof -nP -iTCP:3000 -sTCP:LISTEN in Terminal, or install FreePort to see every listening port in your menu bar with the owning app named. FreePort additionally resolves Docker and DDEV containers, which lsof reports only as the Docker proxy process." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I kill a process running on a port on macOS?",
+      "acceptedAnswer": { "@type": "Answer", "text": "From the terminal: kill $(lsof -ti :3000). In FreePort, click the ✕ next to the port. FreePort sends SIGTERM first and escalates to SIGKILL only if the process ignores it, and stops Docker containers through the Docker API instead, since killing the proxy process would not release the port." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does lsof show OrbStack or com.docker.backend instead of my container?",
+      "acceptedAnswer": { "@type": "Answer", "text": "On macOS, Docker containers run inside a virtual machine and their published ports are forwarded by a single proxy process. Every container therefore appears under the same process name. FreePort queries the Docker socket and matches each published port back to the container that owns it." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is FreePort free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. FreePort is free and open source under the MIT license, with no account, telemetry or network access beyond your local Docker socket." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does macOS say FreePort is damaged or cannot be opened?",
+      "acceptedAnswer": { "@type": "Answer", "text": "FreePort is ad-hoc signed rather than notarized, because notarization requires a paid Apple Developer account. Clear the quarantine flag with: xattr -dr com.apple.quarantine /Applications/FreePort.app — or build it from source, which avoids the flag entirely." }
+    }
+  ]
+}
+</script>
+
+<style>
+  :root {
+    --bg: #0b0e14;
+    --bg-soft: #11151f;
+    --panel: #161b26;
+    --line: #232a38;
+    --text: #e8edf7;
+    --muted: #949fb5;
+    --dim: #6b7689;
+    --accent: #4d8ff8;
+    --accent-soft: rgba(77, 143, 248, 0.12);
+    --green: #4ac47d;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: rgba(11,14,20,.85); backdrop-filter: saturate(160%) blur(12px); z-index: 10; }
+  .nav { display: flex; align-items: center; gap: 20px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.01em; }
+  .brand img { width: 26px; height: 26px; border-radius: 7px; }
+  .nav .spacer { flex: 1; }
+  .nav a.link { color: var(--muted); font-size: 14px; }
+  .nav a.link:hover { color: var(--text); text-decoration: none; }
+
+  /* Hero */
+  .hero { padding: 72px 0 56px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
+  h1 { font-size: 46px; line-height: 1.08; letter-spacing: -.028em; margin: 0 0 18px; font-weight: 700; }
+  h1 .grad { background: linear-gradient(100deg, #6ea8ff, #4d8ff8 55%, #2f6fe0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: 18.5px; color: var(--muted); margin: 0 0 28px; max-width: 46ch; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3c7ce6; text-decoration: none; }
+  .btn-ghost { border-color: var(--line); color: var(--text); background: var(--bg-soft); }
+  .btn-ghost:hover { border-color: #33405a; text-decoration: none; }
+  .meta { font-size: 13.5px; color: var(--dim); margin-top: 14px; }
+
+  /* UI mock */
+  .mock { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.45); font-size: 13px; }
+  .mock-bar { display: flex; align-items: center; gap: 8px; padding: 10px 13px; border-bottom: 1px solid var(--line); background: #1a2030; }
+  .mock-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+  .mock-bar b { font-weight: 650; font-size: 13px; }
+  .mock-bar .count { font-size: 11px; color: var(--muted); background: rgba(255,255,255,.07); border-radius: 20px; padding: 1px 7px; }
+  .mock-group { font-size: 10px; letter-spacing: .07em; color: var(--dim); background: #131824; padding: 5px 13px; font-weight: 650; }
+  .mock-row { display: flex; align-items: center; gap: 11px; padding: 7px 13px; border-bottom: 1px solid rgba(35,42,56,.5); }
+  .mock-row:last-child { border-bottom: 0; }
+  .mock-port { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; font-size: 12.5px; width: 48px; text-align: right; color: #d8e2f5; }
+  .mock-name { flex: 1; min-width: 0; }
+  .mock-name span { display: block; font-size: 12.5px; }
+  .mock-name small { color: var(--dim); font-size: 10.5px; }
+  .mock-x { color: #5a647a; }
+  .mock-x svg { display: block; opacity: .5; }
+
+  /* Sections */
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 27px; letter-spacing: -.02em; margin: 0 0 10px; font-weight: 680; }
+  .sub { color: var(--muted); margin: 0 0 30px; max-width: 62ch; }
+  h3 { font-size: 16px; margin: 0 0 6px; font-weight: 650; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); font-weight: 650; }
+  td.before { color: var(--dim); font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  td.after strong { color: var(--text); }
+  td.after small { color: var(--muted); display: block; font-size: 12.5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .card { background: var(--bg-soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .card .ico { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 12px; }
+
+  pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; }
+  pre .c { color: var(--dim); }
+  ol.steps { padding-left: 20px; }
+  ol.steps li { margin-bottom: 12px; }
+
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 0 18px; margin-bottom: 10px; background: var(--bg-soft); }
+  details[open] { padding-bottom: 6px; }
+  summary { cursor: pointer; padding: 15px 0; font-weight: 600; font-size: 15.5px; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; float: right; color: var(--dim); font-weight: 400; font-size: 19px; line-height: 1; }
+  details[open] summary::after { content: "−"; }
+  details p { color: var(--muted); margin-top: 0; font-size: 14.5px; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--dim); font-size: 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  footer .spacer { flex: 1; }
+
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; padding: 48px 0 40px; }
+    h1 { font-size: 34px; }
+    .grid { grid-template-columns: 1fr; }
+    .nav a.link.hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <span class="brand"><img src="icon.png" alt="FreePort icon" width="26" height="26">FreePort</span>
+    <span class="spacer"></span>
+    <a class="link hide-sm" href="#features">Features</a>
+    <a class="link hide-sm" href="#install">Install</a>
+    <a class="link hide-sm" href="#cli">CLI</a>
+    <a class="link" href="#faq">FAQ</a>
+    <a class="link" href="https://github.com/Etyamor/freeport">GitHub</a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <div>
+      <h1>See which app is using<br><span class="grad">which port</span> on macOS.</h1>
+      <p class="lede">
+        A tiny menu bar app that lists every busy port, names the <strong>real</strong> owner —
+        including Docker, OrbStack and DDEV containers — and frees it in one click.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/Etyamor/freeport/releases/latest">Download for macOS</a>
+        <a class="btn btn-ghost" href="https://github.com/Etyamor/freeport">View source</a>
+      </div>
+      <p class="meta">Free &amp; open source · MIT · Universal (Apple Silicon + Intel) · macOS 13+ · under 1 MB</p>
+    </div>
+
+    <div class="mock" role="img" aria-label="The FreePort menu bar popover listing busy ports grouped by DDEV, Node and Databases, each with a button to free it">
+      <div class="mock-bar"><span class="dot"></span><b>Ports</b><span class="count">7</span></div>
+      <div class="mock-group">DDEV</div>
+      <div class="mock-row"><span class="mock-port">32768</span><span class="mock-name"><span>my-site · web</span><small>ddev/ddev-webserver → :80</small></span><span class="mock-x">✕</span></div>
+      <div class="mock-row"><span class="mock-port">32772</span><span class="mock-name"><span>my-site · db</span><small>ddev/ddev-dbserver-mariadb → :3306</small></span><span class="mock-x">✕</span></div>
+      <div class="mock-group">NODE</div>
+      <div class="mock-row"><span class="mock-port">3000</span><span class="mock-name"><span>node</span><small>~/Work/storefront</small></span><span class="mock-x">✕</span></div>
+      <div class="mock-row"><span class="mock-port">5173</span><span class="mock-name"><span>bun</span><small>~/Work/admin-panel</small></span><span class="mock-x">✕</span></div>
+      <div class="mock-group">DATABASES</div>
+      <div class="mock-row"><span class="mock-port">5432</span><span class="mock-name"><span>api-postgres-1</span><small>postgres:16-alpine</small></span><span class="mock-x">✕</span></div>
+      <div class="mock-row"><span class="mock-port">6379</span><span class="mock-name"><span>api-redis-1</span><small>redis:7-alpine</small></span><span class="mock-x">✕</span></div>
+    </div>
+  </div>
+
+  <section id="why">
+    <h2>“Port 3000 is already in use.” By what, exactly?</h2>
+    <p class="sub">
+      <code>lsof -i :3000</code> tells you the port is held by <code>OrbStack</code>. That is true and
+      useless — you still don't know which of your eight containers it is, or how to stop it.
+      FreePort resolves the actual owner.
+    </p>
+    <table>
+      <thead><tr><th>What lsof tells you</th><th>What FreePort tells you</th></tr></thead>
+      <tbody>
+        <tr><td class="before">OrbStack — :32768</td><td class="after"><strong>my-site · web</strong><small>DDEV project, forwarding to :80 in the container</small></td></tr>
+        <tr><td class="before">OrbStack — :5433</td><td class="after"><strong>api-db-1</strong><small>postgres:17-alpine, forwarding to :5432</small></td></tr>
+        <tr><td class="before">node — :3000</td><td class="after"><strong>node</strong><small>~/Work/storefront</small></td></tr>
+        <tr><td class="before">node — :7265</td><td class="after"><strong>node</strong><small>Raycast Backend</small></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="features">
+    <h2>What it does</h2>
+    <p class="sub">Built for the Docker + DDEV + Node mix, where the process name alone never answers the question.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="ico">◧</div>
+        <h3>Container-aware</h3>
+        <p>Ports held by the Docker proxy are matched back to the real container through the Docker socket. Works with Docker Desktop, OrbStack, Colima and Rancher Desktop.</p>
+      </div>
+      <div class="card">
+        <div class="ico">▦</div>
+        <h3>DDEV-aware</h3>
+        <p>Containers group by their <code>com.ddev.site-name</code> label. Freeing one port stops the whole project — web <em>and</em> db — instead of leaving half a site running.</p>
+      </div>
+      <div class="card">
+        <div class="ico">⌘</div>
+        <h3>Project paths, not just “node”</h3>
+        <p>Node and Bun processes show their working directory, so three <code>node</code> rows are actually distinguishable at a glance.</p>
+      </div>
+      <div class="card">
+        <div class="ico">✕</div>
+        <h3>Frees correctly, not bluntly</h3>
+        <p>A process gets <code>SIGTERM</code>, 1.5 seconds to exit, then <code>SIGKILL</code>. A container is stopped via the Docker API — killing the proxy would not release the port.</p>
+      </div>
+      <div class="card">
+        <div class="ico">⚿</div>
+        <h3>Safe by default</h3>
+        <p>Only processes you own can be signalled. System daemons are refused outright, and shared infrastructure like <code>ddev-router</code> asks for confirmation first.</p>
+      </div>
+      <div class="card">
+        <div class="ico">◇</div>
+        <h3>Native and tiny</h3>
+        <p>Swift and SwiftUI, under 1 MB, no Electron, no background CPU burn. Idles at a 20-second poll and speeds up only while the popover is open.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p class="sub">Two options. Building from source takes a few seconds and skips the Gatekeeper step.</p>
+    <ol class="steps">
+      <li><a href="https://github.com/Etyamor/freeport/releases/latest">Download the latest release</a>, unzip it, and drag <strong>FreePort.app</strong> to your Applications folder.</li>
+      <li>Clear the quarantine flag macOS puts on downloaded apps:
+        <pre>xattr -dr com.apple.quarantine /Applications/FreePort.app</pre>
+      </li>
+      <li>Launch it and look for the plug icon in your menu bar.</li>
+    </ol>
+    <p class="sub" style="margin-top:28px">Or build it yourself:</p>
+<pre>git clone https://github.com/Etyamor/freeport.git
+cd freeport
+./build.sh --install</pre>
+    <p class="meta">
+      FreePort is ad-hoc signed rather than notarized, because notarization requires a paid Apple
+      Developer account and this is free software. Building from source avoids the quarantine flag entirely.
+    </p>
+  </section>
+
+  <section id="cli">
+    <h2>There's a CLI too</h2>
+    <p class="sub">The same binary runs headless, so you can stay in the terminal when you're already there.</p>
+<pre><span class="c"># every listening port, with its real owner</span>
+FreePort --list
+
+<span class="c"># release whatever is holding :3000</span>
+FreePort --free 3000
+
+<span class="c"># worth aliasing</span>
+alias ports='/Applications/FreePort.app/Contents/MacOS/FreePort --list'
+alias freeport='/Applications/FreePort.app/Contents/MacOS/FreePort --free'</pre>
+  </section>
+
+  <section id="faq">
+    <h2>Frequently asked questions</h2>
+
+    <details open>
+      <summary>How do I find what is using a port on macOS?</summary>
+      <p>From the terminal, <code>lsof -nP -iTCP:3000 -sTCP:LISTEN</code> shows the process holding port 3000.
+      FreePort shows every listening port at once in your menu bar, and — unlike <code>lsof</code> — names the
+      Docker or DDEV container behind the port instead of the shared proxy process.</p>
+    </details>
+
+    <details>
+      <summary>How do I kill a process running on a port on macOS?</summary>
+      <p>In the terminal: <code>kill $(lsof -ti :3000)</code>. In FreePort, click the ✕ beside the port.
+      FreePort sends <code>SIGTERM</code> first and only escalates to <code>SIGKILL</code> if the process
+      ignores it, so your dev server gets a chance to shut down cleanly.</p>
+    </details>
+
+    <details>
+      <summary>Why does lsof show “OrbStack” or “com.docker.backend” instead of my container?</summary>
+      <p>On macOS, Docker runs inside a virtual machine and every published port is forwarded by one shared
+      proxy process — so all your containers look identical from the outside. FreePort queries the Docker
+      socket and matches each published port back to the container that actually owns it.</p>
+    </details>
+
+    <details>
+      <summary>Can it free a port used by a Docker or DDEV container?</summary>
+      <p>Yes, and it does it the right way. Killing the proxy process would not release the port, so FreePort
+      stops the container through the Docker API instead. For DDEV it stops every container in that project,
+      so you don't end up with a running database and no web server.</p>
+    </details>
+
+    <details>
+      <summary>Is FreePort free?</summary>
+      <p>Yes — free and open source under the MIT license. No account, no telemetry, and no network access
+      beyond your own local Docker socket.</p>
+    </details>
+
+    <details>
+      <summary>macOS says the app is damaged or can't be opened. What now?</summary>
+      <p>That's Gatekeeper's quarantine flag on a non-notarized download. Run
+      <code>xattr -dr com.apple.quarantine /Applications/FreePort.app</code> once, or build from source with
+      <code>./build.sh --install</code>, which never sets the flag.</p>
+    </details>
+
+    <details>
+      <summary>Can it free ports owned by root or another user?</summary>
+      <p>No. Those ports are listed so you can see them, but releasing one would require <code>sudo</code> —
+      which a menu bar app has no business holding. System daemons are protected outright.</p>
+    </details>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <span>FreePort — MIT licensed</span>
+  <span class="spacer"></span>
+  <a href="https://github.com/Etyamor/freeport">GitHub</a>
+  <a href="https://github.com/Etyamor/freeport/releases/latest">Releases</a>
+  <a href="https://github.com/Etyamor/freeport/issues">Report an issue</a>
+</footer>
+
+</body>
+</html>
